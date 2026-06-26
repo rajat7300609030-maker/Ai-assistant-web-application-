@@ -115,6 +115,20 @@ async function startServer() {
 
   wss.on("connection", async (clientWs: WebSocket, request) => {
     logToFile(`wss connection event fired. Client WS state: ${clientWs.readyState}`);
+    
+    // Heartbeat ping interval (every 20s) to keep client-server socket active and avoid gateway timeout (e.g., on Cloud Run/Nginx)
+    const keepAliveInterval = setInterval(() => {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        try {
+          clientWs.send(JSON.stringify({ type: "ping" }));
+        } catch (e: any) {
+          logToFile(`Error sending heartbeat ping: ${e.message}`);
+        }
+      } else {
+        clearInterval(keepAliveInterval);
+      }
+    }, 20000);
+
     // Parse query parameters for assistant customization safely
     let urlObj: URL;
     try {
@@ -346,12 +360,14 @@ You are fully synced with the current configuration of the user's application da
             }
           },
           onclose: () => {
+            logToFile("Gemini session closed");
             console.log("Gemini session closed");
             if (clientWs.readyState === WebSocket.OPEN) {
               clientWs.send(JSON.stringify({ type: "status", status: "disconnected" }));
             }
           },
           onerror: (err) => {
+            logToFile(`Gemini session error: ${err.message || err}`);
             console.error("Gemini session error:", err);
             if (clientWs.readyState === WebSocket.OPEN) {
               clientWs.send(JSON.stringify({ type: "error", message: err.message || "Gemini connection error" }));
@@ -417,12 +433,21 @@ You are fully synced with the current configuration of the user's application da
       }
     });
 
-    clientWs.on("close", () => {
+    clientWs.on("error", (err) => {
+      clearInterval(keepAliveInterval);
+      logToFile(`Client WebSocket error: ${err.message || err}`);
+      console.error("Client WebSocket error:", err);
+    });
+
+    clientWs.on("close", (code, reason) => {
+      clearInterval(keepAliveInterval);
+      logToFile(`Client connection closed. Code: ${code}, Reason: ${reason || "None"}`);
       console.log("Client connection closed, closing Gemini live session");
       if (session) {
         try {
           session.close();
-        } catch (err) {
+        } catch (err: any) {
+          logToFile(`Error closing Gemini session: ${err.message || err}`);
           console.error("Error closing session:", err);
         }
       }

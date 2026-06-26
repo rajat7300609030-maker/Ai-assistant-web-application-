@@ -1019,14 +1019,20 @@ export default function App() {
       ws.onclose = (ev) => {
         console.log("WebSocket gateway session completed:", ev);
         if (!errorStateMsgRef.current) {
-          disconnectSession();
+          if (ev.code === 1006) {
+            disconnectSession("Connection closed abnormally (Code 1006). This can happen due to a network gateway timeout, a server restart, or a brief internet disruption.");
+          } else if (ev.code !== 1000 && ev.code !== 1005) {
+            disconnectSession(`Voice session closed (Code: ${ev.code}). ${ev.reason || "The gateway or server ended the connection."}`);
+          } else {
+            disconnectSession();
+          }
         }
       };
 
       ws.onerror = (err) => {
         console.error("WebSocket connection failure:", err);
         if (!errorStateMsgRef.current) {
-          disconnectSession("Unstable connection or network gateway timeout.");
+          disconnectSession("Unable to establish secure voice link to server. Please check your internet connection or verify the deployed server is active.");
         }
       };
 
