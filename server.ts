@@ -63,6 +63,7 @@ Personality Style Prompts:
 };
 
 async function startServer() {
+  logToFile("Initializing startServer() function...");
   const app = express();
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
@@ -474,7 +475,13 @@ You are fully synced with the current configuration of the user's application da
     });
   }
 
+  server.on("error", (err: any) => {
+    logToFile(`HTTP Server error occurred: ${err.message || err}. Stack: ${err.stack}`);
+    console.error("HTTP Server error occurred:", err);
+  });
+
   server.listen(PORT, "0.0.0.0", () => {
+    logToFile(`Zoya fullstack server started successfully and listening on port ${PORT}`);
     console.log(`Zoya fullstack server running on http://0.0.0.0:${PORT}`);
   });
 }
