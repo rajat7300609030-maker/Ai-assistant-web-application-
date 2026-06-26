@@ -205,6 +205,7 @@ export default function App() {
   // Use refs for high-frequency audio volume processing to completely avoid lagging the React tree
   const userVolumeRef = useRef(0);
   const zoyaVolumeRef = useRef(0);
+  const errorStateMsgRef = useRef<string | null>(null);
 
   const [assistantName, setAssistantName] = useState(() => {
     const saved = localStorage.getItem("zoya_assistant_name");
@@ -699,6 +700,7 @@ export default function App() {
 
   // Close connections and reset mic capture
   const disconnectSession = (errorStateMsg?: string) => {
+    errorStateMsgRef.current = errorStateMsg || null;
     setState(errorStateMsg ? AssistantState.ERROR : AssistantState.DISCONNECTED);
     if (errorStateMsg) {
       setErrorMessage(errorStateMsg);
@@ -756,6 +758,7 @@ export default function App() {
   };
 
   const connectSession = async () => {
+    errorStateMsgRef.current = null;
     setErrorMessage("");
     setState(AssistantState.CONNECTING);
     console.log("Starting Zoya stream capture...");
@@ -1015,14 +1018,16 @@ export default function App() {
 
       ws.onclose = (ev) => {
         console.log("WebSocket gateway session completed:", ev);
-        if (state !== AssistantState.ERROR) {
+        if (!errorStateMsgRef.current) {
           disconnectSession();
         }
       };
 
       ws.onerror = (err) => {
         console.error("WebSocket connection failure:", err);
-        disconnectSession("Unstable connection or network gateway timeout.");
+        if (!errorStateMsgRef.current) {
+          disconnectSession("Unstable connection or network gateway timeout.");
+        }
       };
 
     } catch (e: any) {
